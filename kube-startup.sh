@@ -5,6 +5,7 @@ set -o nounset
 set -o pipefail
 
 # reset the cluster
+rm -rf $HOME/.kube
 sudo kubeadm reset
 
 # setup cluster master
