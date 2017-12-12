@@ -24,8 +24,8 @@ sudo ping -b 10.0.0.255 -c 5 #replace with own ipaddress .255
 PI_IPS=$(arp -e | grep b8:27:eb | awk '{print $1}')
 
 for IP in PI_IPS; do
-    ssh pirate@$(IP) sudo $(JOIN_COMMAND)
-    ssh pirate@$(IP) sudo reboot
+    ssh pirate@$IP sudo $JOIN_COMMAND
+    ssh pirate@$IP sudo reboot
 done;
 
 cd ~/arm-kube-yarn; make;
