@@ -11,8 +11,8 @@ sleep 30
 sudo ip -s -s neigh flush all
 sudo ping -b 10.0.0.255 -c 5 #replace with own ipaddress .255
 IPS=$(arp -e | grep eth0 | awk '{print $1}')
+PI_IPS=()
 declare -A IP_SET
-declare -A PI_IPS
 
 
 for IP in $IPS; do
