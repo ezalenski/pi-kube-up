@@ -5,6 +5,7 @@ set -o nounset
 set -o pipefail
 
 # get and reset cluster
+rm ~/.ssh/known_hosts
 sudo ip -s -s neigh flush all
 PI_IPS=()
 declare -A IP_SET
@@ -16,16 +17,15 @@ while [[ ! "${#PI_IPS[@]}" =~ "6" ]]; do
 
 
     for IP in $IPS; do
-        if [[ ! ${IP_SET["$IP"]+abc} ]] ; then
+        status=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 $IP echo ok 2>&1 || true)
+        if [[ $status == ok && ! ${IP_SET["$IP"]+abc} ]] ; then
             IP_SET+=(["$IP"]=true)
-            status=$(ssh -o BatchMode=yes -o ConnectTimeout=5 $IP echo ok 2>&1 || true)
-            if [[ $status == ok ]] ; then
-                PI_IPS+=("$IP")
-                ssh $IP sudo kubeadm reset
-                ssh $IP sudo reboot || true
-            fi
+            PI_IPS+=("$IP")
+            ssh $IP sudo kubeadm reset
+            ssh $IP sudo reboot || true
         fi
     done;
+    echo "Found ${#PI_IPS[@]} nodes..."
 done;
 
 rm -rf $HOME/.kube
