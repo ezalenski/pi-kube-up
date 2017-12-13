@@ -4,32 +4,30 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# wait for nodes to come up
-sleep 30
-
-# get cluster
+# get and reset cluster
 sudo ip -s -s neigh flush all
-sudo ping -b 10.0.0.255 -c 5 #replace with own ipaddress .255
-IPS=$(arp -e | grep eth0 | awk '{print $1}')
 PI_IPS=()
 declare -A IP_SET
+IP_RANGE="$(ip addr | grep "inet.*eth0" | awk '{print $2}' | awk -F. '{print $1"."$2"."$3}').255"
+
+while [[ ! "${#PI_IPS[@]}" =~ "6" ]]; do
+    sudo ping -b $IP_RANGE -c 2
+    IPS=$(arp -e | grep eth0 | awk '{print $1}')
 
 
-for IP in $IPS; do
-    status=$(ssh -o BatchMode=yes -o ConnectTimeout=5 $IP echo ok 2>&1)
-    if [[ $status == ok && ! ${IP_SET["$IP"]+abc} ]] ; then
-        HOSTNAME=$(ssh $IP hostname)
-        IP_SET+=(["$IP"]=true)
-        PI_IPS+=("$IP")
-    fi
+    for IP in $IPS; do
+        if [[ ! ${IP_SET["$IP"]+abc} ]] ; then
+            IP_SET+=(["$IP"]=true)
+            status=$(ssh -o BatchMode=yes -o ConnectTimeout=5 $IP echo ok 2>&1 || true)
+            if [[ $status == ok ]] ; then
+                PI_IPS+=("$IP")
+                ssh $IP sudo kubeadm reset
+                ssh $IP sudo reboot || true
+            fi
+        fi
+    done;
 done;
 
-for IP in $PI_IPS; do
-    echo $IP
-done;
-
-exit 0
-# reset the cluster
 rm -rf $HOME/.kube
 sudo kubeadm reset
 
@@ -45,12 +43,12 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 # add flannel to cluster
 curl -sSL https://raw.githubusercontent.com/coreos/flannel/v0.9.1/Documentation/kube-flannel.yml | sed "s/amd64/arm64/g" | kubectl create -f -
 
+sleep 30
+
 # get slave local ips
-for IP in $PI_IPS; do
-    status=$(ssh -o BatchMode=yes -o ConnectTimeout=5 $IP echo ok 2>&1)
-    if [[ $status == ok ]] ; then
-        ssh pirate@$IP sudo $JOIN_COMMAND
-    fi
+echo "Kubernetes join command: $JOIN_COMMAND"
+for IP in "${PI_IPS[@]}"; do
+    ssh -f pirate@$IP sudo $JOIN_COMMAND || true
 done;
 
 cd ~/arm-kube-yarn; make;
