@@ -1,0 +1,12 @@
+[Unit]
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+User=pirate
+ExecStart=/usr/local/bin/kube-startup.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
