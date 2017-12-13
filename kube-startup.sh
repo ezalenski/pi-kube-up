@@ -5,7 +5,7 @@ set -o nounset
 set -o pipefail
 
 # get and reset cluster
-rm ~/.ssh/known_hosts
+rm -f ~/.ssh/known_hosts
 sudo ip -s -s neigh flush all
 PI_IPS=()
 declare -A IP_SET
@@ -21,6 +21,9 @@ while [[ ! "${#PI_IPS[@]}" =~ "6" ]]; do
         if [[ $status == ok && ! ${IP_SET["$IP"]+abc} ]] ; then
             IP_SET+=(["$IP"]=true)
             PI_IPS+=("$IP")
+            HOSTNAME=$(ssh $IP hostname)
+            sudo sed -r -i 's/(.)*$HOSTNAME(.)*//' /etc/hosts || true
+            echo "$IP $HOSTNAME" | sudo tee --append /etc/hosts > /dev/null
             ssh $IP sudo kubeadm reset
             ssh $IP sudo reboot || true
         fi
