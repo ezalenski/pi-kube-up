@@ -3,33 +3,29 @@
 set -o errexit
 set -o nounset
 set -o pipefail
+set +e
 
 # get and reset cluster
 rm -f ~/.ssh/known_hosts
-sudo ip -s -s neigh flush all
 PI_IPS=()
 declare -A IP_SET
-IP_RANGE="$(ip addr | grep "inet.*eth0" | awk '{print $2}' | awk -F. '{print $1"."$2"."$3}').255"
+IP_RANGE="$(ip addr | grep "inet.*eth0" | awk '{print $2}' | awk -F. '{print $1"."$2"."$3}').0"
 
 while [[ ! "${#PI_IPS[@]}" =~ "6" ]]; do
-    sudo ping -b $IP_RANGE -c 2
-    IPS=$(arp -e | grep eth0 | awk '{print $1}')
-
+    IPS=$(nmap -p 22 --open 10.0.0.0/24 | grep 'scan report' | awk '{print $5}')
 
     for IP in $IPS; do
         status=$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 $IP echo ok 2>&1 || true)
         if [[ $status == ok && ! ${IP_SET["$IP"]+abc} ]] ; then
             IP_SET+=(["$IP"]=true)
             PI_IPS+=("$IP")
-            HOSTNAME=$(ssh $IP hostname)
-            sudo sed -r -i 's/(.)*$HOSTNAME(.)*//' /etc/hosts || true
-            echo "$IP $HOSTNAME" | sudo tee --append /etc/hosts > /dev/null
             ssh $IP sudo kubeadm reset
             ssh $IP sudo reboot || true
         fi
     done;
     echo "Found ${#PI_IPS[@]} nodes..."
 done;
+set -e
 
 rm -rf $HOME/.kube
 sudo kubeadm reset
